@@ -1,0 +1,47 @@
+{
+  "rooms": {
+    "afds": {
+      "name": "room 1",
+      "rooms": {
+        "north": "afds",
+        "south": "afds",
+        "east": "faaf"
+      },
+      "description": "A test room",
+      "items": [{
+        "name": "potion",
+        "description": "W e w  L a d",
+        "effects": [
+          ["bleed", {
+            "damage_tick": 2,
+            "tick_length": 3,
+            "timeout": 10
+          }]
+        ]
+      }]
+    },
+    "faaf": {
+      "name": "room 2",
+      "rooms": {
+        "north": "faaf",
+        "south": "faaf",
+        "east": "afds"
+      },
+      "description": "A test room 2",
+      "items": [{
+        "name": "potion",
+        "description": "A y y  L m a o",
+        "effects": [
+          ["bleed", {
+            "damage_tick": 2,
+            "tick_length": 3,
+            "timeout": 10
+          }]
+        ]
+      }]
+    }
+  },
+  "basehp": 30,
+  "opening": "Welcome to the manor, enjoy your stay",
+  "start_room": "afds"
+}
