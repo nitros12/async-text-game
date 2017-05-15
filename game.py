@@ -1,14 +1,40 @@
 import asyncio
+import inspect
 import json
 import sys
+from concurrent import futures
 
 import enum
 
-async def ainput(prompt=None, *,  loop=None):
+
+class CommandException(Exception):
+    pass
+
+
+async def ainput(prompt=None, *,  loop=None, event=None):
+    """Get input from prompt asynchronously."""
     loop = asyncio.get_event_loop() if loop is None else loop
     line = '' if prompt is None else prompt
+
     print(line)
-    return await loop.run_in_executor(None, sys.stdin.readline)
+
+    tasks = [loop.run_in_executor(None, sys.stdin.readline)]
+    if event is not None:
+        tasks.append(event.wait())
+
+    results, _ = await asyncio.wait(tasks, return_when=futures.FIRST_COMPLETED)
+    result = [i.result() for i in results][0]
+    if isinstance(result, str):
+        return result.strip(" \n\r")
+
+
+def utils_get(iter, **kwargs):
+    def check(val):
+        return all(getattr(val, k) == v for k, v in kwargs.items())
+
+    for i in iter:
+        if check(i):
+            return i
 
 
 class Status(enum.IntFlag):
@@ -18,6 +44,7 @@ class Status(enum.IntFlag):
 
 
 def and_comma_list(*items):
+    """Join a list into format `a, b, c and d`."""
     if not items:
         return ""
     comma_lst = ", ".join(items[:-1])
@@ -62,19 +89,23 @@ class Room:
 
 class Item:
 
-    def __init__(self, name, description, effects):
+    def __init__(self, name, description, effects, consumed_state="used"):
         self.name = name  # string
         self.description = description  # string
-        self.effects = effects  # (type, {effect_args=stuff})
+        self.effects = effects  # [{name=name, effect_args=stuff)]
+        self.used = False
+        self.state = consumed_state
 
     def apply(self, player):
-        player.apply(*self.effects)
+        player.add_effect(*self.effects)
+        self.used = True
 
     def to_dict(self):
         return {
             "name": self.name,
             "description": self.description,
-            "effects": self.effects
+            "effects": self.effects,
+            "consumed_state": self.state
         }
 
     @classmethod
@@ -87,6 +118,14 @@ class Item:
 
 class Player:
 
+    def __init__(self, basehp, game, loop):
+        self.loop = loop
+        self._hp = basehp
+        self.status = Status(0)
+        self.game = game
+        self.is_active = True
+
+    #  TODO: refactor status effects into modules
     async def bleed(self, *, damage_tick, tick_length, timeout):
         """Apply a bleeding effect to the player.
         damage_tick <- Damage taken every tick.
@@ -95,10 +134,10 @@ class Player:
         """
         def cut_type(damage_tick):
             if 0 <= damage_tick <= 3:
-                return "small"
+                return "small cut"
             if 3 < damage_tick <= 8:
-                return "moderate"
-            return "largs"
+                return "moderate gash"
+            return "large wound"
 
         self.notify("A {} appears on your body and starts to bleed,"
                     " you'll take {} damage every {}s for the next {}s".format(cut_type(damage_tick), damage_tick,
@@ -138,28 +177,50 @@ class Player:
         self.notify("You took {} damage!".format(damage))
         self.hp -= damage
 
-    def __init__(self, basehp, game, loop):
-        self.loop = loop
-        self.hp = basehp
-        self.status = Status(0)
-        self.game = game
-        self.is_active = True
+    @property
+    def hp(self):
+        return self._hp
 
-    def add_effect(self, type, **kwargs):
-        if type == "slow":
-            self.loop.create_task(self.bleed(**kwargs))
-        elif type == "blind":
-            self.blind(**kwargs)
-        elif type == "slow":
-            self.slow(**kwargs)
-        elif type == "hurt":
-            self.hurt(**kwargs)
+    @hp.setter
+    def hp(self, other):
+        self._hp = other
+        if self.hp < 0:
+            self.game.finish("You died")
+
+    def add_effect(self, *effects):
+        for i in effects:
+            type = i.pop("type")
+            if type == "bleed":
+                self.loop.create_task(self.bleed(**i))
+            elif type == "blind":
+                self.blind(**i)
+            elif type == "slow":
+                self.slow(**i)
+            elif type == "hurt":
+                self.hurt(**i)
 
     def notify(self, msg):
         self.game.player_msg(msg)
 
 
+class Command:
+
+    def __init__(self, func):
+        self.name = func.__name__
+        self.func = func
+        doc = "" if func.__doc__ is None else func.__doc__
+        self.desc = doc.split("\n")[0]
+        self.parent = None
+
+    async def invoke(self, *args):
+        res = self.func(self.parent, *args)
+        if inspect.isawaitable(res):
+            await res
+
+
 class Game:
+
+    commands = {}
 
     def __init__(self, *, rooms, opening, start_room, basehp=100, loop=None):
         self.rooms = rooms
@@ -169,6 +230,18 @@ class Game:
         self.start_room = start_room
 
         self.current_room = None
+        self.running_event = asyncio.Event()
+
+    def finish(self, reason):
+        self.running_event.set()
+        self.player_msg(reason)
+
+    async def parse_command(self, string):
+        cmd, *rest = string.split()  # split first word off
+        func = self.commands.get(cmd)
+        if func is None:
+            raise Exception("Command not found")
+        await func.invoke(*rest)
 
     @classmethod
     def from_dict(cls, dic):
@@ -207,9 +280,55 @@ class Game:
     async def game_loop(self):
         print(self.opening)
         self.enter_room(self.start_room)
-        while True:
-            uinput = await ainput("Make your choice")
-            print("your choice was", uinput, end="")
+        while not self.running_event.is_set():
+            uinput = await ainput("Make your choice", event=self.running_event)
+            if not uinput:
+                continue
+
+            try:
+                await self.parse_command(uinput)
+            except CommandException as e:
+                print(e)
+
+    def add_cog(self, cog):
+        print("Registering cog: {.__class__.__name__}".format(cog))
+        for name, member in inspect.getmembers(cog):
+            if isinstance(member, Command):
+                member.parent = cog
+                self.commands[name] = member
+
+
+class Cog:
+
+    def __init__(self, game):
+        self.game = game
+
+    @Command
+    def move(self, direction):
+        """Move to a location. use: move <direction>."""
+        room = self.game.current_room.rooms.get(direction)
+        if room is None:
+            raise CommandException("Cannot move in this direction")
+
+        self.game.enter_room(room)
+
+    @Command
+    def use(self, item):
+        """Use an item. use: use <item>."""
+        item = utils_get(self.game.current_room.items, name=item)
+        if item is None:
+            raise CommandException("This item does not exist")
+        if item.used:
+            raise CommandException("Item has been {0.state}.".format(item))
+        item.apply(self.game.player)
+
+    @Command
+    def help(self):
+        """Display the help."""
+        format_str = "{0.name}: {0.desc}"
+        print("Commands:")
+        for i in self.game.commands.values():
+            print(format_str.format(i))
 
 
 if __name__ == '__main__':
@@ -220,5 +339,7 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     game = Game.from_dict(gdata)
+    game.add_cog(Cog(game))
+    print(game.commands)
 
     loop.run_until_complete(game.game_loop())

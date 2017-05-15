@@ -11,13 +11,12 @@
       "items": [{
         "name": "potion",
         "description": "W e w  L a d",
-        "effects": [
-          ["bleed", {
-            "damage_tick": 2,
-            "tick_length": 3,
-            "timeout": 10
-          }]
-        ]
+        "effects": [{
+          "type": "bleed",
+          "damage_tick": 4,
+          "tick_length": 3,
+          "timeout": 1000
+        }]
       }]
     },
     "faaf": {
@@ -31,13 +30,12 @@
       "items": [{
         "name": "potion",
         "description": "A y y  L m a o",
-        "effects": [
-          ["bleed", {
-            "damage_tick": 2,
-            "tick_length": 3,
-            "timeout": 10
-          }]
-        ]
+        "effects": [{
+          "type": "bleed",
+          "damage_tick": 2,
+          "tick_length": 3,
+          "timeout": 10
+        }]
       }]
     }
   },
