@@ -2,16 +2,60 @@ import asyncio
 import inspect
 import json
 import sys
+import curses
 from concurrent import futures
-
+import shutil
 import enum
 
+def clear_before(func):
+    def pred(self, *args, **kwargs):
+        self.screen.clear()
+        return func(self, *args, **kwargs)
+    return pred
+
+def refresh_after(func):
+    def pred(self, *args, **kwargs):
+        ret = func(self, *args, **kwargs)
+        self.screen.refresh()
+        return ret
+    return pred
+
+class Window:
+
+    def __init__(self, stdscrn, h, w, x, y):
+        self.screen = stdscrn.derwin(h, w, x, y) 
+
+    @refresh_after
+    def write(self, string):
+        self.screen.addstr(string)
+
+    @refresh_after
+    def write_list(self, iterable):
+        for i in iterable:
+            self.screen.addstr(string)
+
+class StatusWindow(Window):
+    def __init__(self, stats: dict, *args, **kwargs):
+        self.stats = stats
+        super().__init__(*args, **kwargs)
+
+    @clear_before
+    @refresh_after
+    def set_stat(self, stat: str, value: str):
+        self.stats[stat] = str(value)
+
+
+def create_windows(**schema):
+    windows = {}
+    for k, (t, v) in schema.items():
+        windows[k] = t(*v)
+    return windows
 
 class CommandException(Exception):
     pass
 
 
-async def ainput(prompt=None, *,  loop=None, event=None):
+async def ainput(prompt=None, *, loop=None, event=None):
     """Get input from prompt asynchronously."""
     loop = asyncio.get_event_loop() if loop is None else loop
     line = '' if prompt is None else prompt
@@ -67,6 +111,9 @@ class Room:
         self.description = description
         self.global_rooms = global_rooms  # dict of hashes to room objects
 
+    def __str__(self):
+        return self.name
+
     @property
     def entrance(self):
         dirs = "There are {} exits: {}.".format(len(self.rooms), and_comma_list(*self.rooms))
@@ -113,17 +160,20 @@ class Item:
         return cls(**dic)
 
     def __str__(self):
-        return self.name
+        state = self.state if self.used else ""
+        return "{0.name} | {0.description} | {1}".format(self, state)
 
 
 class Player:
 
-    def __init__(self, basehp, game, loop):
+    def __init__(self, basehp, game, stats_display, loop):
         self.loop = loop
         self._hp = basehp
         self.status = Status(0)
         self.game = game
         self.is_active = True
+        self.items_ = []
+        self.stats_display = stats_display
 
     #  TODO: refactor status effects into modules
     async def bleed(self, *, damage_tick, tick_length, timeout):
@@ -184,6 +234,7 @@ class Player:
     @hp.setter
     def hp(self, other):
         self._hp = other
+        self.status_display.set_stat("hp", self.hp)
         if self.hp < 0:
             self.game.finish("You died")
 
@@ -201,6 +252,11 @@ class Player:
 
     def notify(self, msg):
         self.game.player_msg(msg)
+
+    def add_item(self, item):
+        self.items.append(item)
+        disp = " " "\n ".join(map(str, self.items))
+        self.stats_display.set_stat("items", disp)
 
 
 class Command:
@@ -222,15 +278,16 @@ class Game:
 
     commands = {}
 
-    def __init__(self, *, rooms, opening, start_room, basehp=100, loop=None):
+    def __init__(self, *, rooms, opening, start_room, basehp=100, windows={}, loop=None):
         self.rooms = rooms
         self.opening = opening
         self.loop = asyncio.get_event_loop() if loop is None else loop
-        self.player = Player(basehp, self, self.loop)
+        self.player = Player(basehp, self, windows["status"], self.loop)
         self.start_room = start_room
 
         self.current_room = None
         self.running_event = asyncio.Event()
+        self.windows = {}
 
     def finish(self, reason):
         self.running_event.set()
@@ -244,9 +301,9 @@ class Game:
         await func.invoke(*rest)
 
     @classmethod
-    def from_dict(cls, dic):
+    def from_dict(cls, dic, *args, **kwargs):
         rooms = cls.gen_rooms(dic.pop("rooms"))
-        return cls(rooms=rooms, **dic)
+        return cls(*args, rooms=rooms, **{**dic, **kwargs})
 
     @staticmethod
     def gen_rooms(rooms):
@@ -276,6 +333,7 @@ class Game:
     def enter_room(self, room):
         self.current_room = self.rooms[room]
         print(self.current_room.entrance)
+        self.windows["status"].set_stat("room", self.current_room)
 
     async def game_loop(self):
         print(self.opening)
@@ -315,12 +373,27 @@ class Cog:
     @Command
     def use(self, item):
         """Use an item. use: use <item>."""
-        item = utils_get(self.game.current_room.items, name=item)
+        item = utils_get(self.game.player.items, name=item)
         if item is None:
             raise CommandException("This item does not exist")
         if item.used:
             raise CommandException("Item has been {0.state}.".format(item))
         item.apply(self.game.player)
+
+    @Command
+    def collect(self, item):
+        """Collect an item."""
+        item = utils_get(self.game.current_room.items, name=item)
+        if item is None:
+            raise CommandException("This item does not exist")
+        self.game.player.add_item(item)
+        self.game.current_room.items.remove(item)
+
+    @Command
+    def list(self):
+        """List your collected items."""
+        for i in self.game.player.items:
+            self.game.player_msg(i)
 
     @Command
     def help(self):
@@ -338,7 +411,17 @@ if __name__ == '__main__':
 
     loop = asyncio.get_event_loop()
 
-    game = Game.from_dict(gdata)
+    stdscrn = curses.initscr()
+    tsize = shutil.get_terminal_size()
+
+    game = (Window, (stdscrn, 0, 0, tsize.lines - 6, tsize.columns - 30))
+    status = (StatusWindow, ({}, stdscrn, tsize.lines - 6, 30, 0, tsize.columns - 30))
+
+
+    windows = create_windows(game=game, status=status)
+
+
+    game = Game.from_dict(gdata, windows=windows)
     game.add_cog(Cog(game))
     print(game.commands)
 
