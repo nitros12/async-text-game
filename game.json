@@ -12,10 +12,8 @@
         "name": "potion",
         "description": "W e w  L a d",
         "effects": [{
-          "type": "bleed",
-          "damage_tick": 4,
-          "tick_length": 3,
-          "timeout": 1000
+          "type": "blind",
+          "timeout": 10
         }]
       }]
     },
@@ -31,9 +29,7 @@
         "name": "potion",
         "description": "A y y  L m a o",
         "effects": [{
-          "type": "bleed",
-          "damage_tick": 2,
-          "tick_length": 3,
+          "type": "slow",
           "timeout": 10
         }]
       }]
