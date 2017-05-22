@@ -55,7 +55,7 @@ class Game:
         self.player_msg(reason)
 
     async def parse_command(self, string):
-        cmd, *rest = string.split()  # split first word off
+        cmd, *rest = string.split(None, 1)  # split first word off
         func = self.commands.get(cmd)
         if func is None:
             raise CommandException("Command not found")
@@ -63,7 +63,7 @@ class Game:
 
     @classmethod
     def from_dict(cls, dic, *args, **kwargs):
-        rooms = cls.gen_rooms(dic.pop("rooms"))
+        rooms = cls.gen_rooms(dic.pop("rooms", []))
         return cls(*args, rooms=rooms, **{**dic, **kwargs})
 
     @staticmethod
@@ -99,6 +99,8 @@ class Game:
         print(self.current_room.exits)
         if Status.blind not in self.player.status:
             print(self.current_room.item_list)
+        if self.current_room.ending_room:
+            self.finish("You have reached the exit, You can leave the manor now")
 
     async def game_loop(self):
         print(self.opening)
@@ -130,6 +132,5 @@ if __name__ == '__main__':
 
     game = Game.from_dict(gdata)
     game.add_cog(BaseCommands(game))
-    print(game.commands)
 
     loop.run_until_complete(game.game_loop())
