@@ -5,6 +5,7 @@ from shared import and_comma_list
 
 class Room:
     """Class that represents a Room."""
+
     __slots__ = [
         "name",
         "rooms",

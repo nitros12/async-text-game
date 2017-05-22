@@ -27,7 +27,8 @@ async def ainput(prompt=None, *, loop=None, event=None):
 
 
 class Game:
-    """Class for game events and controlling"""
+    """Class for game events and controlling."""
+
     __slots__ = [
         "rooms",
         "opening",
@@ -51,12 +52,12 @@ class Game:
         self.running_event = asyncio.Event()
 
     def finish(self, reason):
-        """End game, quit event loop"""
+        """End game, quit event loop."""
         self.running_event.set()
         self.player_msg(reason)
 
     async def parse_command(self, string):
-        """Parse a game command"""
+        """Parse a game command."""
         cmd, *rest = string.split(None, 1)  # split first word off
         func = self.commands.get(cmd)
         if func is None:
@@ -65,13 +66,13 @@ class Game:
 
     @classmethod
     def from_dict(cls, dic, *args, **kwargs):
-        """Helper function to generate a game from a JSON file"""
+        """Helper function to generate a game from a JSON file."""
         rooms = cls.gen_rooms(dic.pop("rooms", []))
         return cls(*args, rooms=rooms, **{**dic, **kwargs})
 
     @staticmethod
     def gen_rooms(rooms):
-        """Helper function to generate rooms from a JSON file"""
+        """Helper function to generate rooms from a JSON file."""
         globaldict = {}
         for k, v in rooms.items():
             room = Room.from_dict(v)
@@ -92,12 +93,12 @@ class Game:
         }
 
     def use_item(self, item):
-        """Apply an items effects"""
+        """Apply an items effects."""
         for k, v in item.effects:
             self.player.add_effect(k, **v)
 
     def enter_room(self, room):
-        """Enter a room, runs procedures for entering, will raise if player is slowed"""
+        """Enter a room, runs procedures for entering, will raise if player is slowed."""
         if Status.slow in self.player.status:
             raise CommandException("You are still locked inside this room.")
         self.current_room = self.rooms[room]
@@ -109,7 +110,7 @@ class Game:
             self.finish("You have reached the exit, You can leave the manor now")
 
     async def game_loop(self):
-        """Main loop of game"""
+        """Main loop of game."""
         print(self.opening)
         self.enter_room(self.start_room)
         while not self.running_event.is_set():
@@ -123,7 +124,7 @@ class Game:
                 print(e)
 
     def add_cog(self, cog):
-        """Add a cog (collection of commands to the game"""
+        """Add a cog (collection of commands to the game."""
         #print("Registering cog: {.__class__.__name__}".format(cog))
         print("Use the commad `help` to list available commands!")
         for name, member in inspect.getmembers(cog):

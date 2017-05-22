@@ -2,7 +2,8 @@ from shared import Status
 
 
 class Player:
-    """Base class for a player, holds health, items and status"""
+    """Base class for a player, holds health, items and status."""
+
     __slots__ = [
         "loop",
         "_hp",
@@ -33,7 +34,7 @@ class Player:
             self.loop.call_later(timeout, release)
 
     def slow(self, *, timeout):
-        """Slow a player, preventing them from changing rooms"""
+        """Slow a player, preventing them from changing rooms."""
         def release():
             self.status &= ~Status.slow
             self.notify("Your muscles unfreeze and you regain your movement.")
