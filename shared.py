@@ -1,3 +1,4 @@
+"""Shared function for the entire game"""
 import enum
 
 
@@ -12,6 +13,7 @@ def utils_get(iter_, **kwargs):
 
 
 class Status(enum.IntFlag):
+    """Possible statuses of the player"""
     blind = 1
     slow = 2
 

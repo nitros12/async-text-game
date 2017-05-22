@@ -4,7 +4,7 @@ from shared import CommandException, utils_get
 
 
 class Command:
-
+    """A class for commands to be used by the player"""
     def __init__(self, func):
         self.name = func.__name__
         self.func = func
@@ -19,6 +19,7 @@ class Command:
 
 
 class BaseCommands:
+    """Collection of base commands used by the player"""
 
     def __init__(self, game):
         self.game = game

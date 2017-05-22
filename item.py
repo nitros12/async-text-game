@@ -1,4 +1,5 @@
 class Item:
+    """Class holding items for the game"""
     __slots__ = [
         "name",
         "description",
@@ -11,6 +12,7 @@ class Item:
         self.effects = effects  # [{name=name, effect_args=stuff)]
 
     def apply(self, player):
+        """Apply an item to a player"""
         player.add_effect(*self.effects)
 
     def to_dict(self):
