@@ -1,0 +1,88 @@
+{
+    "rooms": {
+        "afds": {
+            "name": "Starting room",
+            "rooms": {
+                "north": "afds",
+                "south": "afds",
+                "east": "faaf",
+                "west": "abbb"
+            },
+            "description": "The room you found yourself in.",
+            "items": [{
+                "name": "green potion",
+                "description": "It looks like it tastes nice, but be careful.",
+                "effects": [{
+                    "type": "blind",
+                    "timeout": 10
+                }]
+            }]
+        },
+        "faaf":{
+            "name": "Second room",
+            "rooms": {
+                "north": "faaf",
+                "south": "faaf",
+                "east": "afds",
+                "west": "abbb"
+            },
+            "description": "Another room, appears to lead nowhere"
+        },
+        "abbb": {
+            "name": "Join room",
+            "rooms": {
+                "north": "afds",
+                "south": "faaf",
+                "east": "dddd",
+                "west": "cccc"
+            },
+            "description": "A room connecting a few others",
+            "items": [{
+                "name": "chocolate",
+                "description": "A bar of chocolate, probably left by a previous adventurer"
+            }]
+        },
+        "cccc": {
+            "name": "Long corridor",
+            "rooms": {
+                "north": "abbb",
+                "east": "eeee"
+            },
+            "description": "A long corridor connecting two rooms"
+        },
+        "dddd": {
+            "name": "Short corridor",
+            "rooms": {
+                "north": "abbb",
+                "west": "eeee"
+            },
+            "description": "A short corridor connecting two rooms"
+        },
+        "eeee": {
+            "name": "Hall",
+            "rooms": {
+                "east": "cccc",
+                "west": "dddd",
+                "south": "ffff"
+            },
+            "description": "A hall connecting two corridors and a room"
+        },
+        "ffff": {
+            "name": "Door room",
+            "rooms": {
+                "east": "end",
+                "south": "end",
+                "west": "end"
+            },
+            "description": "A door room leading to the manor grounds"
+        },
+        "end": {
+            "name": "Exit",
+            "description": "the exit",
+            "ending_room": "true"
+        }
+    },
+    "basehp": 30,
+    "opening": "Welcome to the manor, enjoy your stay",
+    "start_room": "afds"
+}

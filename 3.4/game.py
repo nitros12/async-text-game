@@ -9,18 +9,20 @@ from player import Player
 from room import Room
 from shared import CommandException, Status
 
-async def ainput(prompt=None, *, loop=None, event=None):
+
+@asyncio.coroutine
+def ainput(prompt=None, *, loop=None, event=None):
     """Get input from prompt asynchronously."""
     loop = asyncio.get_event_loop() if loop is None else loop
     line = '' if prompt is None else prompt
 
-    print(line, end="")
+    print(line, end='')
 
     tasks = [loop.run_in_executor(None, sys.stdin.readline)]
     if event is not None:
         tasks.append(event.wait())
 
-    results, _ = await asyncio.wait(tasks, return_when=futures.FIRST_COMPLETED)
+    results, _ = yield from asyncio.wait(tasks, return_when=futures.FIRST_COMPLETED)
     result = [i.result() for i in results][0]
     if isinstance(result, str):
         return result.strip(" \n\r")
@@ -56,13 +58,14 @@ class Game:
         self.running_event.set()
         self.player_msg(reason)
 
-    async def parse_command(self, string):
+    @asyncio.coroutine
+    def parse_command(self, string):
         """Parse a game command."""
         cmd, *rest = string.split(None, 1)  # split first word off
         func = self.commands.get(cmd)
         if func is None:
             raise CommandException("Command not found")
-        await func.invoke(*rest)
+        yield from func.invoke(*rest)
 
     @classmethod
     def from_dict(cls, dic, *args, **kwargs):
@@ -109,17 +112,18 @@ class Game:
         if self.current_room.ending_room:
             self.finish("You have reached the exit, You can leave the manor now")
 
-    async def game_loop(self):
+    @asyncio.coroutine
+    def game_loop(self):
         """Main loop of game."""
         print(self.opening)
         self.enter_room(self.start_room)
         while not self.running_event.is_set():
-            uinput = await ainput("Make your choice\n>  ", event=self.running_event)
+            uinput = yield from ainput("Make your choice\n>  ", event=self.running_event)
             if not uinput:
                 continue
 
             try:
-                await self.parse_command(uinput)
+                yield from self.parse_command(uinput)
             except CommandException as e:
                 print(e)
 
